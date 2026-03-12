@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#090807" />
   <title>Orm TextTool</title>
-  <link rel="stylesheet" href="./styles.css?v=20260312-02" />
+  <link rel="stylesheet" href="./styles.css?v=20260312-11" />
 </head>
 <body>
   <div class="app-shell">
@@ -39,7 +39,6 @@
       <section class="glass-card control-card">
         <div class="section-heading">
           <h2>目录</h2>
-          <button id="showAllBtn" class="ghost-button compact-button is-active" type="button">全部</button>
         </div>
 
         <div class="action-grid category-grid">
@@ -81,7 +80,10 @@
         </div>
 
         <div class="filter-grid">
-          <input id="searchInput" type="search" placeholder="搜索文本或文件名" />
+          <div class="search-field">
+            <input id="searchInput" type="search" placeholder="搜索文本或文件名" />
+            <button id="clearSearchBtn" class="search-clear-button hidden" type="button" aria-label="清除搜索">×</button>
+          </div>
           <select id="sortSelect">
             <option value="sheet">表格顺序</option>
             <option value="newest">最近导入</option>
@@ -99,13 +101,15 @@
 
         <div id="emptyState" class="empty-state hidden">
           <h3>暂无内容</h3>
-          <p>导入 Excel 后会在这里展示。</p>
+          <p>导入文件后会在这里显示</p>
         </div>
 
         <div class="pagination-bar">
+          <button id="firstPageBtn" class="ghost-button compact-button" type="button">首页</button>
           <button id="prevPageBtn" class="ghost-button compact-button" type="button">上一页</button>
           <span id="pageMeta" class="page-meta">第 1 页</span>
           <button id="nextPageBtn" class="ghost-button compact-button" type="button">下一页</button>
+          <button id="lastPageBtn" class="ghost-button compact-button" type="button">末页</button>
         </div>
       </section>
     </main>
@@ -137,7 +141,7 @@
     </article>
   </template>
 
+  <script src="./app.js?v=20260312-11"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <script src="./app.js?v=20260312-02"></script>
 </body>
 </html>
