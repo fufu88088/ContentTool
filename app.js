@@ -1,4 +1,5 @@
-const DB_NAME = "orm-texttool-db";
+const DB_NAME = "text-library-db";
+const LEGACY_DB_NAME = "orm-texttool-db";
 const DB_VERSION = 1;
 const STORE_NAME = "appState";
 const STATE_KEY = "main";
@@ -51,6 +52,7 @@ function cacheRefs() {
   refs.importCategorySelect = document.querySelector("#importCategorySelect");
   refs.skipHeaderCheckbox = document.querySelector("#skipHeaderCheckbox");
   refs.importFeedback = document.querySelector("#importFeedback");
+  refs.showAllBtn = document.querySelector("#showAllBtn");
   refs.newCategoryInput = document.querySelector("#newCategoryInput");
   refs.createCategoryBtn = document.querySelector("#createCategoryBtn");
   refs.categoryList = document.querySelector("#categoryList");
@@ -58,23 +60,16 @@ function cacheRefs() {
   refs.listTitle = document.querySelector("#listTitle");
   refs.viewButtons = Array.from(document.querySelectorAll(".segment"));
   refs.searchInput = document.querySelector("#searchInput");
-  refs.clearSearchBtn = document.querySelector("#clearSearchBtn");
   refs.sortSelect = document.querySelector("#sortSelect");
   refs.entryList = document.querySelector("#entryList");
   refs.emptyState = document.querySelector("#emptyState");
-  refs.firstPageBtn = document.querySelector("#firstPageBtn");
   refs.prevPageBtn = document.querySelector("#prevPageBtn");
   refs.nextPageBtn = document.querySelector("#nextPageBtn");
-  refs.lastPageBtn = document.querySelector("#lastPageBtn");
   refs.pageMeta = document.querySelector("#pageMeta");
   refs.entryCardTemplate = document.querySelector("#entryCardTemplate");
 }
 
 function bindEvents() {
-  refs.importTriggerBtn.addEventListener("click", function () {
-    refs.fileInput.click();
-  });
-
   refs.fileInput.addEventListener("change", function (event) {
     const file = event.target.files && event.target.files[0];
     if (file) importFile(file);
@@ -83,7 +78,6 @@ function bindEvents() {
 
   refs.importCategorySelect.addEventListener("change", function (event) {
     state.selectedCategoryId = event.target.value || null;
-    refs.importFeedback.textContent = "";
     resetPaging();
     render();
   });
@@ -91,6 +85,12 @@ function bindEvents() {
   refs.createCategoryBtn.addEventListener("click", createCategory);
   refs.newCategoryInput.addEventListener("keydown", function (event) {
     if (event.key === "Enter") createCategory();
+  });
+
+  refs.showAllBtn.addEventListener("click", function () {
+    state.selectedCategoryId = null;
+    resetPaging();
+    render();
   });
 
   refs.viewButtons.forEach(function (button) {
@@ -103,18 +103,8 @@ function bindEvents() {
 
   refs.searchInput.addEventListener("input", function (event) {
     state.search = event.target.value.trim().toLowerCase();
-    syncSearchClearButton();
     resetPaging();
     renderEntries();
-  });
-
-  refs.clearSearchBtn.addEventListener("click", function () {
-    refs.searchInput.value = "";
-    state.search = "";
-    syncSearchClearButton();
-    resetPaging();
-    renderEntries();
-    refs.searchInput.focus();
   });
 
   refs.sortSelect.addEventListener("change", function (event) {
@@ -130,25 +120,10 @@ function bindEvents() {
     }
   });
 
-  refs.firstPageBtn.addEventListener("click", function () {
-    if (state.currentPage > 1) {
-      state.currentPage = 1;
-      renderEntries();
-    }
-  });
-
   refs.nextPageBtn.addEventListener("click", function () {
     const totalPages = getTotalPages();
     if (state.currentPage < totalPages) {
       state.currentPage += 1;
-      renderEntries();
-    }
-  });
-
-  refs.lastPageBtn.addEventListener("click", function () {
-    const totalPages = getTotalPages();
-    if (state.currentPage < totalPages) {
-      state.currentPage = totalPages;
       renderEntries();
     }
   });
@@ -173,15 +148,6 @@ function createCategory() {
   const name = refs.newCategoryInput.value.trim();
   if (!name) {
     refs.importFeedback.textContent = "请输入目录名称";
-    return;
-  }
-
-  const exists = state.categories.some(function (category) {
-    return category.name.trim() === name;
-  });
-
-  if (exists) {
-    refs.importFeedback.textContent = "目录名称不能重复";
     return;
   }
 
@@ -280,7 +246,6 @@ function extractRows(workbook, skipHeader) {
 
 function render() {
   syncCategorySelect();
-  syncSearchClearButton();
   renderStats();
   renderCategoryList();
   renderViewButtons();
@@ -298,6 +263,7 @@ function renderStats() {
 }
 
 function renderCategoryList() {
+  refs.showAllBtn.classList.toggle("is-active", !state.selectedCategoryId);
   refs.categoryList.innerHTML = "";
 
   state.categories.forEach(function (category) {
@@ -317,7 +283,6 @@ function renderCategoryList() {
     selectButton.addEventListener("click", function () {
       state.selectedCategoryId = category.id;
       refs.importCategorySelect.value = category.id;
-      refs.importFeedback.textContent = "";
       resetPaging();
       render();
     });
@@ -347,10 +312,8 @@ function renderEntries() {
   refs.pageMeta.textContent = "第 " + state.currentPage + " 页";
   refs.entryList.innerHTML = "";
   refs.emptyState.classList.toggle("hidden", visibleEntries.length > 0);
-  refs.firstPageBtn.disabled = state.currentPage <= 1;
   refs.prevPageBtn.disabled = state.currentPage <= 1;
   refs.nextPageBtn.disabled = state.currentPage >= totalPages;
-  refs.lastPageBtn.disabled = state.currentPage >= totalPages;
 
   pagedEntries.forEach(function (entry) {
     const fragment = refs.entryCardTemplate.content.cloneNode(true);
@@ -521,10 +484,6 @@ function resetPaging() {
   state.currentPage = 1;
 }
 
-function syncSearchClearButton() {
-  refs.clearSearchBtn.classList.toggle("hidden", !refs.searchInput.value);
-}
-
 function deleteCategory(categoryId) {
   if (state.categories.length <= 1) {
     refs.importFeedback.textContent = "至少保留一个目录";
@@ -546,14 +505,38 @@ function deleteCategory(categoryId) {
     state.selectedCategoryId = null;
   }
 
-  refs.importFeedback.textContent = "";
+  refs.importFeedback.textContent = "目录及内容已删除";
   syncCategorySelect();
   persistAndRender();
 }
 
 function loadState() {
+  return readStateFromDb(DB_NAME).then(function (savedState) {
+    if (savedState) return savedState;
+
+    return readStateFromDb(LEGACY_DB_NAME).then(function (legacyState) {
+      if (!legacyState) return null;
+
+      return saveStateToDb(DB_NAME, legacyState).then(function () {
+        return legacyState;
+      });
+    });
+  });
+}
+
+function saveState() {
+  const payload = {
+    categories: state.categories,
+    entries: state.entries,
+    selectedCategoryId: state.selectedCategoryId,
+  };
+
+  return saveStateToDb(DB_NAME, payload);
+}
+
+function readStateFromDb(dbName) {
   return new Promise(function (resolve, reject) {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onupgradeneeded = function () {
       const db = request.result;
@@ -575,7 +558,6 @@ function loadState() {
       getRequest.onerror = function () {
         reject(getRequest.error);
       };
-
       getRequest.onsuccess = function () {
         resolve(getRequest.result || null);
       };
@@ -583,9 +565,16 @@ function loadState() {
   });
 }
 
-function saveState() {
+function saveStateToDb(dbName, payload) {
   return new Promise(function (resolve, reject) {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(dbName, DB_VERSION);
+
+    request.onupgradeneeded = function () {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
 
     request.onerror = function () {
       reject(request.error);
@@ -595,13 +584,8 @@ function saveState() {
       const db = request.result;
       const transaction = db.transaction(STORE_NAME, "readwrite");
       const store = transaction.objectStore(STORE_NAME);
-      const payload = {
-        categories: state.categories,
-        entries: state.entries,
-        selectedCategoryId: state.selectedCategoryId,
-      };
-
       const putRequest = store.put(payload, STATE_KEY);
+
       putRequest.onerror = function () {
         reject(putRequest.error);
       };
